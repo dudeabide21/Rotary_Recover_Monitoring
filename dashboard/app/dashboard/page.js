@@ -197,75 +197,211 @@
 
 
 
-
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-function Chart({title, series}) {
+function Panel({ title, children }) {
   return (
-    <div className="p-4 border rounded-xl bg-white">
-      <h3 className="font-semibold mb-2">{title}</h3>
-      <pre className="text-xs h-40 overflow-auto">
-        {JSON.stringify(series,null,2)}
-      </pre>
+    <div className="p-4 sm:p-5 border rounded-2xl bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h3 className="font-semibold text-base sm:text-lg">{title}</h3>
+      </div>
+      {children}
     </div>
   );
 }
 
-export default function DashboardPage(){
-  const [data,setData]=useState({});
+function StatCard({ label, value }) {
+  return (
+    <div className="p-4 border rounded-2xl bg-white shadow-sm">
+      <div className="text-xs uppercase tracking-widest text-gray-500">{label}</div>
+      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    </div>
+  );
+}
 
-  const deviceId="esp8266-01";
+function SimpleLine({ points }) {
+  // points: [[ts, val], ...]
+  // lightweight SVG line (no libs)
+  const width = 900;
+  const height = 220;
 
-  async function load(){
-    const metrics=[
-      "a1x_avg","a1y_avg","a1z_avg",
-      "g1x_avg","g1y_avg","g1z_avg",
-      "a2x_avg","a2y_avg","a2z_avg",
-      "g2x_avg","g2y_avg","g2z_avg",
-      "a1_mag_avg","a2_mag_avg",
-      "g1_mag_avg","g2_mag_avg",
-      "dw_mag_avg","dw_mag_max","dom_avg"
-    ].join(",");
-
-    const r=await fetch(`/api/timeseries?deviceId=${deviceId}&metrics=${metrics}&minutes=15`,{cache:"no-store"});
-    const j=await r.json();
-    if(j.ok) setData(j.series);
+  if (!points || points.length < 2) {
+    return (
+      <div className="text-sm text-gray-500 py-8">
+        Waiting for data…
+      </div>
+    );
   }
 
-  useEffect(()=>{
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const yMin0 = Math.min(...ys);
+  const yMax0 = Math.max(...ys);
+  const pad = (yMax0 - yMin0) * 0.1 || 1;
+  const yMin = yMin0 - pad;
+  const yMax = yMax0 + pad;
+
+  const scaleX = (x) => 20 + ((x - xMin) / (xMax - xMin || 1)) * (width - 40);
+  const scaleY = (y) => (height - 20) - ((y - yMin) / (yMax - yMin || 1)) * (height - 40);
+
+  let d = `M ${scaleX(points[0][0]).toFixed(2)} ${scaleY(points[0][1]).toFixed(2)}`;
+  for (let i = 1; i < points.length; i++) {
+    d += ` L ${scaleX(points[i][0]).toFixed(2)} ${scaleY(points[i][1]).toFixed(2)}`;
+  }
+
+  return (
+    <div className="w-full overflow-x-auto border rounded-xl">
+      <svg width={width} height={height} className="block">
+        <line x1="20" y1="20" x2="20" y2={height - 20} stroke="#e5e7eb" />
+        <line x1="20" y1={height - 20} x2={width - 20} y2={height - 20} stroke="#e5e7eb" />
+        <path d={d} fill="none" stroke="black" strokeWidth="2" />
+        <text x="28" y="24" fill="#6b7280" fontSize="12">{yMax.toFixed(2)}</text>
+        <text x="28" y={height - 22} fill="#6b7280" fontSize="12">{yMin.toFixed(2)}</text>
+      </svg>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const [deviceId, setDeviceId] = useState("esp8266-01");
+  const [minutes, setMinutes] = useState(15);
+
+  // These MUST match what you’re currently storing in DB (your screenshot confirms these keys)
+  const metricPresets = useMemo(() => ([
+    { key: "knee_rom_avg", label: "Knee ROM (avg)" },
+    { key: "knee_rom_max", label: "Knee ROM (max)" },
+    { key: "smoothness_avg", label: "Smoothness (avg)" },
+    { key: "rep_total", label: "Reps (total)" },
+  ]), []);
+
+  const [selectedMetric, setSelectedMetric] = useState("knee_rom_avg");
+
+  const [series, setSeries] = useState({});
+  const [error, setError] = useState("");
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  async function load() {
+    setError("");
+
+    const metrics = metricPresets.map(m => m.key).join(",");
+
+    try {
+      const res = await fetch(
+        `/api/timeseries?deviceId=${encodeURIComponent(deviceId)}&minutes=${minutes}&metrics=${encodeURIComponent(metrics)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.error || "fetch_failed");
+      setSeries(data.series || {});
+      setLastUpdate(Date.now());
+    } catch (e) {
+      setError(String(e.message || e));
+    }
+  }
+
+  useEffect(() => {
     load();
-    const t=setInterval(load,5000);
-    return ()=>clearInterval(t);
-  },[]);
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId, minutes]);
 
-  return(
-    <main className="p-6 max-w-7xl mx-auto grid gap-6">
-      <h1 className="text-2xl font-semibold">Realtime Rehab Dashboard</h1>
+  // Latest values for KPI cards
+  const latest = (key) => {
+    const pts = series?.[key];
+    if (!pts || !pts.length) return "—";
+    const v = pts[pts.length - 1][1];
+    return Number.isFinite(v) ? v.toFixed(3) : "—";
+  };
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Chart title="Accel Axes MPU1" series={{
-          x:data.a1x_avg,
-          y:data.a1y_avg,
-          z:data.a1z_avg
-        }} />
+  return (
+    <main className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-5 sm:px-10 lg:px-12 py-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+              Realtime Rehab Dashboard
+            </h1>
+            <p className="text-gray-500 mt-2">
+              Updates every 5 seconds {lastUpdate ? `• last: ${new Date(lastUpdate).toLocaleTimeString()}` : ""}
+            </p>
+          </div>
 
-        <Chart title="Gyro Axes MPU1" series={{
-          x:data.g1x_avg,
-          y:data.g1y_avg,
-          z:data.g1z_avg
-        }} />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:w-auto">
+            <input
+              className="border rounded-xl px-3 py-2"
+              value={deviceId}
+              onChange={(e) => setDeviceId(e.target.value)}
+              placeholder="deviceId"
+            />
+            <input
+              className="border rounded-xl px-3 py-2"
+              type="number"
+              min="1"
+              max="1440"
+              value={minutes}
+              onChange={(e) => setMinutes(Number(e.target.value))}
+              placeholder="minutes"
+            />
+            <button
+              onClick={load}
+              className="rounded-xl px-3 py-2 bg-black text-white"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
 
-        <Chart title="Accel Magnitudes" series={{
-          a1:data.a1_mag_avg,
-          a2:data.a2_mag_avg
-        }} />
+        {error ? (
+          <div className="mt-5 p-4 border rounded-2xl bg-red-50 text-red-800">
+            Error: {error}
+          </div>
+        ) : null}
 
-        <Chart title="Relative Motion" series={{
-          dw:data.dw_mag_avg,
-          dw_max:data.dw_mag_max,
-          dominance:data.dom_avg
-        }} />
+        {/* KPI Cards */}
+        <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="ROM Avg" value={latest("knee_rom_avg")} />
+          <StatCard label="ROM Max" value={latest("knee_rom_max")} />
+          <StatCard label="Smoothness" value={latest("smoothness_avg")} />
+          <StatCard label="Reps Total" value={latest("rep_total")} />
+        </div>
+
+        {/* Main Chart */}
+        <div className="mt-6 grid gap-4">
+          <Panel title="Live Chart">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+              <div className="text-sm text-gray-600">Metric</div>
+              <select
+                className="border rounded-xl px-3 py-2 w-full sm:w-72"
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value)}
+              >
+                {metricPresets.map((m) => (
+                  <option key={m.key} value={m.key}>{m.label} ({m.key})</option>
+                ))}
+              </select>
+            </div>
+
+            <SimpleLine points={series?.[selectedMetric] || []} />
+          </Panel>
+
+          {/* Debug panel (optional but useful) */}
+          <Panel title="Debug: last 5 points per metric">
+            <pre className="text-xs overflow-auto">
+              {JSON.stringify(
+                Object.fromEntries(
+                  metricPresets.map(m => [m.key, (series?.[m.key] || []).slice(-5)])
+                ),
+                null,
+                2
+              )}
+            </pre>
+          </Panel>
+        </div>
       </div>
     </main>
   );
