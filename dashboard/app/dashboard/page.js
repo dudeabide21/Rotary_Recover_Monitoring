@@ -148,7 +148,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000);
+    const t = setInterval(load, 2000);
+
     return () => clearInterval(t);
   }, [deviceId, minutes]);
 

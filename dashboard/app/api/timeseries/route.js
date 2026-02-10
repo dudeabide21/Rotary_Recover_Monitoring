@@ -223,5 +223,6 @@ export async function GET(req) {
     }
   }
 
-  return json(200, { ok: true, deviceId, bucketSec: 5, series });
+  return json(200, { ok:true, deviceId, bucketSec: 2, series });
+
 }
