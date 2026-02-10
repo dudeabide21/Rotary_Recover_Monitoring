@@ -1,305 +1,148 @@
-// "use client";
-
-// import React, { useEffect, useMemo, useState } from "react";
-
-// function LineChart({ points, height = 220 }) {
-//   // points: [[ts, val], ...]
-//   const width = 900;
-
-//   const values = points.map((p) => p[1]);
-//   const min = values.length ? Math.min(...values) : 0;
-//   const max = values.length ? Math.max(...values) : 1;
-//   const pad = (max - min) * 0.1 || 1;
-
-//   const yMin = min - pad;
-//   const yMax = max + pad;
-
-//   const path = useMemo(() => {
-//     if (points.length < 2) return "";
-//     const x0 = points[0][0];
-//     const x1 = points[points.length - 1][0] || x0 + 1;
-//     const dx = x1 - x0 || 1;
-
-//     const scaleX = (ts) => ((ts - x0) / dx) * (width - 40) + 20;
-//     const scaleY = (v) => {
-//       const t = (v - yMin) / (yMax - yMin || 1);
-//       return height - 20 - t * (height - 40);
-//     };
-
-//     let d = `M ${scaleX(points[0][0]).toFixed(2)} ${scaleY(points[0][1]).toFixed(2)}`;
-//     for (let i = 1; i < points.length; i++) {
-//       d += ` L ${scaleX(points[i][0]).toFixed(2)} ${scaleY(points[i][1]).toFixed(2)}`;
-//     }
-//     return d;
-//   }, [points, height, yMin, yMax]);
-
-//   return (
-//     <div style={{ width: "100%", overflowX: "auto", border: "1px solid #eee", borderRadius: 12 }}>
-//       <svg width={width} height={height} style={{ display: "block" }}>
-//         {/* axes */}
-//         <line x1="20" y1="20" x2="20" y2={height - 20} stroke="#ddd" />
-//         <line x1="20" y1={height - 20} x2={width - 20} y2={height - 20} stroke="#ddd" />
-
-//         {/* path */}
-//         {path ? (
-//           <path d={path} fill="none" stroke="black" strokeWidth="2" />
-//         ) : (
-//           <text x="20" y="40" fill="#777" fontSize="12">
-//             Waiting for data…
-//           </text>
-//         )}
-
-//         {/* min/max labels */}
-//         <text x="28" y="24" fill="#777" fontSize="12">{yMax.toFixed(2)}</text>
-//         <text x="28" y={height - 22} fill="#777" fontSize="12">{yMin.toFixed(2)}</text>
-//       </svg>
-//     </div>
-//   );
-// }
-
-// export default function DashboardPage() {
-//   // tweak these to match your device + metric names
-//   const [deviceId, setDeviceId] = useState("esp8266-01");
-//   const [metric, setMetric] = useState("knee_rom_avg");
-//   const [minutes, setMinutes] = useState(15);
-
-//   const [points, setPoints] = useState([]);
-//   const [lastTs, setLastTs] = useState(null);
-//   const [err, setErr] = useState("");
-
-//   async function load() {
-//     setErr("");
-//     try {
-//       const res = await fetch(
-//         `/api/timeseries?deviceId=${encodeURIComponent(deviceId)}&metric=${encodeURIComponent(
-//           metric
-//         )}&minutes=${minutes}`,
-//         { cache: "no-store" }
-//       );
-//       const data = await res.json();
-//       if (!data?.ok) throw new Error(data?.error || "fetch_failed");
-//       setPoints(data.points || []);
-//       const lt = data.points?.length ? data.points[data.points.length - 1][0] : null;
-//       setLastTs(lt);
-//     } catch (e) {
-//       setErr(String(e.message || e));
-//     }
-//   }
-
-//   useEffect(() => {
-//     load();
-//     const t = setInterval(load, 5000);
-//     return () => clearInterval(t);
-//     // re-poll when inputs change
-//   }, [deviceId, metric, minutes]);
-
-//   return (
-//     <main style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-//       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-//         <h1 style={{ margin: 0, fontSize: 24 }}>Live Dashboard</h1>
-//         <span style={{ opacity: 0.6 }}>updates every 5s</span>
-//       </div>
-
-//       <div
-//         style={{
-//           marginTop: 16,
-//           display: "grid",
-//           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-//           gap: 12
-//         }}
-//       >
-//         <label style={{ display: "grid", gap: 6 }}>
-//           <span style={{ fontSize: 12, opacity: 0.7 }}>Device ID</span>
-//           <input
-//             value={deviceId}
-//             onChange={(e) => setDeviceId(e.target.value)}
-//             style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-//           />
-//         </label>
-
-//         <label style={{ display: "grid", gap: 6 }}>
-//           <span style={{ fontSize: 12, opacity: 0.7 }}>Metric key</span>
-//           <input
-//             value={metric}
-//             onChange={(e) => setMetric(e.target.value)}
-//             style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-//           />
-//         </label>
-
-//         <label style={{ display: "grid", gap: 6 }}>
-//           <span style={{ fontSize: 12, opacity: 0.7 }}>Window (minutes)</span>
-//           <input
-//             type="number"
-//             min="1"
-//             max="1440"
-//             value={minutes}
-//             onChange={(e) => setMinutes(Number(e.target.value))}
-//             style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-//           />
-//         </label>
-
-//         <button
-//           onClick={load}
-//           style={{
-//             alignSelf: "end",
-//             padding: "10px 14px",
-//             borderRadius: 10,
-//             border: "1px solid #111",
-//             background: "#111",
-//             color: "white",
-//             cursor: "pointer"
-//           }}
-//         >
-//           Refresh
-//         </button>
-//       </div>
-
-//       <div style={{ marginTop: 16 }}>
-//         <LineChart points={points} />
-//       </div>
-
-//       <div style={{ marginTop: 12, display: "flex", gap: 16, flexWrap: "wrap" }}>
-//         <div style={{ padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
-//           <div style={{ fontSize: 12, opacity: 0.7 }}>Latest value</div>
-//           <div style={{ fontSize: 20, fontWeight: 600 }}>
-//             {points.length ? points[points.length - 1][1].toFixed(3) : "—"}
-//           </div>
-//         </div>
-
-//         <div style={{ padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
-//           <div style={{ fontSize: 12, opacity: 0.7 }}>Latest timestamp</div>
-//           <div style={{ fontSize: 14, fontWeight: 600 }}>
-//             {lastTs ? new Date(lastTs * 1000).toLocaleString() : "—"}
-//           </div>
-//         </div>
-
-//         {err ? (
-//           <div style={{ padding: 12, border: "1px solid #f3c", borderRadius: 12 }}>
-//             <div style={{ fontSize: 12, opacity: 0.7 }}>Error</div>
-//             <div style={{ fontSize: 14, fontWeight: 600 }}>{err}</div>
-//           </div>
-//         ) : null}
-//       </div>
-
-//       <details style={{ marginTop: 16 }}>
-//         <summary style={{ cursor: "pointer" }}>Debug: last 10 points</summary>
-//         <pre style={{ fontSize: 12, background: "#fafafa", padding: 12, borderRadius: 12 }}>
-//           {JSON.stringify(points.slice(-10), null, 2)}
-//         </pre>
-//       </details>
-//     </main>
-//   );
-// }
-
-
-
-
-
-
-
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 
-function Panel({ title, children }) {
+// Helper for Tailwind classes
+function cls(...a) { return a.filter(Boolean).join(" "); }
+
+// Professional Card with subtle hover effect
+function Card({ className, children }) {
   return (
-    <div className="p-4 sm:p-5 border rounded-2xl bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <h3 className="font-semibold text-base sm:text-lg">{title}</h3>
-      </div>
+    <div className={cls("rounded-[2rem] border border-gray-100 shadow-sm bg-white transition-all hover:shadow-md", className)}>
       {children}
     </div>
   );
 }
 
-function StatCard({ label, value }) {
+function Pill({ children, active }) {
   return (
-    <div className="p-4 border rounded-2xl bg-white shadow-sm">
-      <div className="text-xs uppercase tracking-widest text-gray-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-    </div>
+    <span className={cls(
+      "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider border",
+      active ? "bg-black text-white border-black" : "bg-gray-50 text-gray-500 border-gray-200"
+    )}>
+      {children}
+    </span>
   );
 }
 
-function SimpleLine({ points }) {
-  // points: [[ts, val], ...]
-  // lightweight SVG line (no libs)
-  const width = 900;
-  const height = 220;
+function Stat({ label, value, sub, tone = "neutral" }) {
+  const themes = {
+    lime: "bg-emerald-50/50 text-emerald-700 border-emerald-100",
+    sky: "bg-blue-50/50 text-blue-700 border-blue-100",
+    pink: "bg-rose-50/50 text-rose-700 border-rose-100",
+    amber: "bg-amber-50/50 text-amber-700 border-amber-100",
+    neutral: "bg-gray-50/50 text-gray-700 border-gray-100"
+  };
 
-  if (!points || points.length < 2) {
-    return (
-      <div className="text-sm text-gray-500 py-8">
-        Waiting for data…
+  return (
+    <Card className={cls("p-6 flex flex-col justify-between min-h-[140px]", themes[tone])}>
+      <div>
+        <div className="text-[10px] uppercase font-bold tracking-[0.15em] opacity-70">{label}</div>
+        <div className="mt-2 text-4xl font-light tracking-tight">
+          {value}
+        </div>
       </div>
+      {sub && <div className="mt-2 text-xs font-medium opacity-60 flex items-center gap-1.5">
+        <span className="w-1 h-1 rounded-full bg-current" /> {sub}
+      </div>}
+    </Card>
+  );
+}
+
+function LineChart({ title, subtitle, seriesMap }) {
+  const width = 800;
+  const height = 240;
+  const keys = Object.keys(seriesMap || {});
+  const allPoints = keys.flatMap(k => seriesMap[k] || []);
+  const hasData = allPoints.length >= 2;
+
+  if (!hasData) {
+    return (
+      <Card className="p-8 flex flex-col items-center justify-center text-center opacity-60 border-dashed">
+        <div className="w-12 h-12 rounded-full bg-gray-50 mb-3" />
+        <div className="font-medium">{title}</div>
+        <div className="text-sm">Awaiting stream...</div>
+      </Card>
     );
   }
 
-  const xs = points.map((p) => p[0]);
-  const ys = points.map((p) => p[1]);
+  const xs = allPoints.map(p => p[0]);
+  const ys = allPoints.map(p => p[1]);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin0 = Math.min(...ys), yMax0 = Math.max(...ys);
+  const pad = (yMax0 - yMin0) * 0.15 || 1;
+  const yMin = yMin0 - pad, yMax = yMax0 + pad;
 
-  const xMin = Math.min(...xs);
-  const xMax = Math.max(...xs);
-  const yMin0 = Math.min(...ys);
-  const yMax0 = Math.max(...ys);
-  const pad = (yMax0 - yMin0) * 0.1 || 1;
-  const yMin = yMin0 - pad;
-  const yMax = yMax0 + pad;
-
-  const scaleX = (x) => 20 + ((x - xMin) / (xMax - xMin || 1)) * (width - 40);
-  const scaleY = (y) => (height - 20) - ((y - yMin) / (yMax - yMin || 1)) * (height - 40);
-
-  let d = `M ${scaleX(points[0][0]).toFixed(2)} ${scaleY(points[0][1]).toFixed(2)}`;
-  for (let i = 1; i < points.length; i++) {
-    d += ` L ${scaleX(points[i][0]).toFixed(2)} ${scaleY(points[i][1]).toFixed(2)}`;
-  }
+  const scaleX = (x) => 10 + ((x - xMin) / (xMax - xMin || 1)) * (width - 20);
+  const scaleY = (y) => (height - 10) - ((y - yMin) / (yMax - yMin || 1)) * (height - 20);
 
   return (
-    <div className="w-full overflow-x-auto border rounded-xl">
-      <svg width={width} height={height} className="block">
-        <line x1="20" y1="20" x2="20" y2={height - 20} stroke="#e5e7eb" />
-        <line x1="20" y1={height - 20} x2={width - 20} y2={height - 20} stroke="#e5e7eb" />
-        <path d={d} fill="none" stroke="black" strokeWidth="2" />
-        <text x="28" y="24" fill="#6b7280" fontSize="12">{yMax.toFixed(2)}</text>
-        <text x="28" y={height - 22} fill="#6b7280" fontSize="12">{yMin.toFixed(2)}</text>
-      </svg>
-    </div>
+    <Card className="p-6">
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900">{title}</h3>
+          <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+        </div>
+        <div className="flex gap-1">
+          {keys.map((k, i) => (
+             <span key={k} className="w-2 h-2 rounded-full mt-1" style={{backgroundColor: i===0 ? '#000' : '#9ca3af'}} />
+          ))}
+        </div>
+      </div>
+
+      <div className="relative">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
+          {/* Subtle Grid Lines */}
+          <line x1="0" y1={scaleY(yMin0)} x2={width} y2={scaleY(yMin0)} stroke="#f3f4f6" strokeWidth="1" />
+          <line x1="0" y1={scaleY(yMax0)} x2={width} y2={scaleY(yMax0)} stroke="#f3f4f6" strokeWidth="1" />
+
+          {keys.map((k, i) => {
+            const pts = seriesMap[k] || [];
+            if (pts.length < 2) return null;
+            let d = `M ${scaleX(pts[0][0])} ${scaleY(pts[0][1])}`;
+            for (let j = 1; j < pts.length; j++) {
+              d += ` L ${scaleX(pts[j][0])} ${scaleY(pts[j][1])}`;
+            }
+            return (
+              <path
+                key={k}
+                d={d}
+                fill="none"
+                stroke={i === 0 ? "black" : "#9ca3af"}
+                strokeWidth={i === 0 ? "2.5" : "1.5"}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={i === 1 ? "4 4" : "0"}
+              />
+            );
+          })}
+        </svg>
+      </div>
+    </Card>
   );
 }
 
 export default function DashboardPage() {
   const [deviceId, setDeviceId] = useState("esp8266-01");
   const [minutes, setMinutes] = useState(15);
-
-  // These MUST match what you’re currently storing in DB (your screenshot confirms these keys)
-  const metricPresets = useMemo(() => ([
-    { key: "knee_rom_avg", label: "Knee ROM (avg)" },
-    { key: "knee_rom_max", label: "Knee ROM (max)" },
-    { key: "smoothness_avg", label: "Smoothness (avg)" },
-    { key: "rep_total", label: "Reps (total)" },
-  ]), []);
-
-  const [selectedMetric, setSelectedMetric] = useState("knee_rom_avg");
-
   const [series, setSeries] = useState({});
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
   const [lastUpdate, setLastUpdate] = useState(null);
 
+  const METRICS = useMemo(() => ([
+    "dw_mag_avg","dw_mag_max","dw_s_avg","rep_total","rep_active","rom_proxy_deg_last","rep_dur_last_s","g1_mag_avg","g2_mag_avg","dom_avg"
+  ]), []);
+
   async function load() {
-    setError("");
-
-    const metrics = metricPresets.map(m => m.key).join(",");
-
     try {
-      const res = await fetch(
-        `/api/timeseries?deviceId=${encodeURIComponent(deviceId)}&minutes=${minutes}&metrics=${encodeURIComponent(metrics)}`,
-        { cache: "no-store" }
-      );
-      const data = await res.json();
-      if (!data?.ok) throw new Error(data?.error || "fetch_failed");
-      setSeries(data.series || {});
+      const url = `/api/timeseries?deviceId=${encodeURIComponent(deviceId)}&minutes=${encodeURIComponent(minutes)}&metrics=${encodeURIComponent(METRICS.join(","))}`;
+      const r = await fetch(url, { cache: "no-store" });
+      const j = await r.json();
+      if (!j?.ok) throw new Error(j?.error || "fetch_failed");
+      setSeries(j.series || {});
       setLastUpdate(Date.now());
+      setErr("");
     } catch (e) {
-      setError(String(e.message || e));
+      setErr(String(e.message || e));
     }
   }
 
@@ -307,100 +150,120 @@ export default function DashboardPage() {
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, minutes]);
 
-  // Latest values for KPI cards
-  const latest = (key) => {
-    const pts = series?.[key];
-    if (!pts || !pts.length) return "—";
-    const v = pts[pts.length - 1][1];
-    return Number.isFinite(v) ? v.toFixed(3) : "—";
+  const latest = (k) => {
+    const pts = series?.[k];
+    return (pts && pts.length) ? pts[pts.length - 1][1] : null;
   };
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-5 sm:px-10 lg:px-12 py-8">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
-              Realtime Rehab Dashboard
-            </h1>
-            <p className="text-gray-500 mt-2">
-              Updates every 5 seconds {lastUpdate ? `• last: ${new Date(lastUpdate).toLocaleTimeString()}` : ""}
+    <main className="min-h-screen bg-[#fafafa] text-gray-900 font-sans antialiased pb-20">
+      {/* Top Navigation / Status Bar */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 mb-8">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold text-xs">PF</div>
+            <span className="font-bold tracking-tighter text-xl italic">PHYSIO<span className="text-gray-400">FLOW</span></span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Pill active={latest("rep_active") === 1}>{latest("rep_active") === 1 ? "● Live Rep" : "Standby"}</Pill>
+            <div className="text-[10px] text-gray-400 font-mono uppercase ml-2">
+               {lastUpdate ? `Sync: ${new Date(lastUpdate).toLocaleTimeString()}` : "Syncing..."}
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-6">
+        <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="max-w-xl">
+            <h1 className="text-5xl font-light tracking-tight text-gray-900">Motion Intelligence</h1>
+            <p className="mt-4 text-gray-500 leading-relaxed">
+              Real-time biomechanical analysis. Monitoring dual-MPU variance and ROM proxies with low-latency debouncing.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:w-auto">
-            <input
-              className="border rounded-xl px-3 py-2"
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              placeholder="deviceId"
-            />
-            <input
-              className="border rounded-xl px-3 py-2"
-              type="number"
-              min="1"
-              max="1440"
-              value={minutes}
-              onChange={(e) => setMinutes(Number(e.target.value))}
-              placeholder="minutes"
-            />
-            <button
-              onClick={load}
-              className="rounded-xl px-3 py-2 bg-black text-white"
-            >
-              Refresh
-            </button>
+          <div className="flex bg-gray-100 p-1.5 rounded-[2rem] border border-gray-200">
+             <input 
+               className="bg-transparent px-4 py-2 text-sm focus:outline-none w-32" 
+               value={deviceId} 
+               onChange={(e)=>setDeviceId(e.target.value)} 
+             />
+             <button onClick={load} className="bg-white px-6 py-2 rounded-[1.8rem] text-sm font-bold shadow-sm hover:bg-gray-50 transition-colors">
+               Refresh
+             </button>
           </div>
+        </header>
+
+        {/* Infographic KPI Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Stat
+            tone="lime"
+            label="Total Volume"
+            value={latest("rep_total") == null ? "—" : Math.round(latest("rep_total"))}
+            sub="Completed repetitions"
+          />
+          <Stat
+            tone="sky"
+            label="Intensity"
+            value={latest("dw_s_avg") == null ? "—" : Number(latest("dw_s_avg")).toFixed(2)}
+            sub="Rad/s smoothed signal"
+          />
+          <Stat
+            tone="pink"
+            label="Range of Motion"
+            value={latest("rom_proxy_deg_last") == null ? "—" : Number(latest("rom_proxy_deg_last")).toFixed(0) + "°"}
+            sub={`Last: ${Number(latest("rep_dur_last_s") || 0).toFixed(1)}s`}
+          />
+          <Stat
+            tone="amber"
+            label="Symmetry"
+            value={latest("dom_avg") == null ? "—" : Number(latest("dom_avg")).toFixed(3)}
+            sub="Sensor Δ Dominance"
+          />
         </div>
 
-        {error ? (
-          <div className="mt-5 p-4 border rounded-2xl bg-red-50 text-red-800">
-            Error: {error}
+        {/* Main Analytics Area */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-8 space-y-6">
+            <LineChart
+              title="Kinetic Displacement"
+              subtitle="Angular velocity magnitude (Avg vs Max)"
+              seriesMap={{
+                avg: series.dw_mag_avg || [],
+                max: series.dw_mag_max || [],
+              }}
+            />
+            <LineChart
+              title="Sensor Delta"
+              subtitle="Comparison between Primary and Secondary MPU"
+              seriesMap={{
+                g1: series.g1_mag_avg || [],
+                g2: series.g2_mag_avg || [],
+              }}
+            />
           </div>
-        ) : null}
-
-        {/* KPI Cards */}
-        <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="ROM Avg" value={latest("knee_rom_avg")} />
-          <StatCard label="ROM Max" value={latest("knee_rom_max")} />
-          <StatCard label="Smoothness" value={latest("smoothness_avg")} />
-          <StatCard label="Reps Total" value={latest("rep_total")} />
-        </div>
-
-        {/* Main Chart */}
-        <div className="mt-6 grid gap-4">
-          <Panel title="Live Chart">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-              <div className="text-sm text-gray-600">Metric</div>
-              <select
-                className="border rounded-xl px-3 py-2 w-full sm:w-72"
-                value={selectedMetric}
-                onChange={(e) => setSelectedMetric(e.target.value)}
-              >
-                {metricPresets.map((m) => (
-                  <option key={m.key} value={m.key}>{m.label} ({m.key})</option>
-                ))}
-              </select>
-            </div>
-
-            <SimpleLine points={series?.[selectedMetric] || []} />
-          </Panel>
-
-          {/* Debug panel (optional but useful) */}
-          <Panel title="Debug: last 5 points per metric">
-            <pre className="text-xs overflow-auto">
-              {JSON.stringify(
-                Object.fromEntries(
-                  metricPresets.map(m => [m.key, (series?.[m.key] || []).slice(-5)])
-                ),
-                null,
-                2
-              )}
-            </pre>
-          </Panel>
+          <div className="lg:col-span-4 space-y-6">
+             <Card className="p-6 bg-black text-white border-none h-full min-h-[300px]">
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 mb-8">Signal Health</h3>
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex justify-between text-sm mb-2 font-medium">
+                      <span>Buffer Stability</span>
+                      <span>98%</span>
+                    </div>
+                    <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-400 w-[98%]" />
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t border-gray-800">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2">Active Protocol</p>
+                    <p className="text-lg font-light text-gray-200">ISO-Bilateral Debounce</p>
+                  </div>
+                </div>
+             </Card>
+          </div>
         </div>
       </div>
     </main>

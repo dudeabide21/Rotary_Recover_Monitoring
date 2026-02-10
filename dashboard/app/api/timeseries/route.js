@@ -116,6 +116,58 @@
 
 
 
+// import { NextResponse } from "next/server";
+// import { sql } from "@/lib/db";
+
+// function json(status, body) {
+//   return NextResponse.json(body, { status });
+// }
+
+// export async function GET(req) {
+//   const { searchParams } = new URL(req.url);
+
+//   const deviceId = searchParams.get("deviceId");
+//   const minutes = Number(searchParams.get("minutes") || "15");
+//   const metricsCsv = searchParams.get("metrics");
+
+//   if (!deviceId || !metricsCsv) {
+//     return json(400, { ok:false, error:"bad_query" });
+//   }
+
+//   const metrics = metricsCsv.split(",").map(m=>m.trim());
+
+//   const rows = await sql`
+//     select extract(epoch from bucket_start)::bigint as ts, metrics
+//     from telemetry_points
+//     where device_id=${deviceId}
+//       and bucket_start >= now() - (${String(minutes)} || ' minutes')::interval
+//     order by bucket_start asc
+//   `;
+
+//   const series = {};
+//   metrics.forEach(m => series[m] = []);
+
+//   for (const r of rows) {
+//     const ts = Number(r.ts);
+//     const obj = r.metrics || {};
+//     metrics.forEach(m => {
+//       const v = Number(obj[m]);
+//       if (Number.isFinite(v)) series[m].push([ts, v]);
+//     });
+//   }
+
+//   return json(200, { ok:true, deviceId, bucketSec:5, series });
+// }
+
+
+
+
+
+
+
+
+
+
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 
@@ -131,30 +183,45 @@ export async function GET(req) {
   const metricsCsv = searchParams.get("metrics");
 
   if (!deviceId || !metricsCsv) {
-    return json(400, { ok:false, error:"bad_query" });
+    return json(400, { ok: false, error: "bad_query" });
+  }
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
+    return json(400, { ok: false, error: "bad_minutes" });
   }
 
-  const metrics = metricsCsv.split(",").map(m=>m.trim());
+  const metrics = metricsCsv
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
 
-  const rows = await sql`
-    select extract(epoch from bucket_start)::bigint as ts, metrics
-    from telemetry_points
-    where device_id=${deviceId}
-      and bucket_start >= now() - (${String(minutes)} || ' minutes')::interval
-    order by bucket_start asc
-  `;
+  if (!metrics.length) {
+    return json(400, { ok: false, error: "no_metrics" });
+  }
+
+  let rows;
+  try {
+    rows = await sql`
+      select extract(epoch from bucket_start)::bigint as ts, metrics
+      from telemetry_points
+      where device_id = ${deviceId}
+        and bucket_start >= now() - (${String(minutes)} || ' minutes')::interval
+      order by bucket_start asc
+    `;
+  } catch {
+    return json(500, { ok: false, error: "db_query_failed" });
+  }
 
   const series = {};
-  metrics.forEach(m => series[m] = []);
+  for (const m of metrics) series[m] = [];
 
   for (const r of rows) {
     const ts = Number(r.ts);
     const obj = r.metrics || {};
-    metrics.forEach(m => {
+    for (const m of metrics) {
       const v = Number(obj[m]);
       if (Number.isFinite(v)) series[m].push([ts, v]);
-    });
+    }
   }
 
-  return json(200, { ok:true, deviceId, bucketSec:5, series });
+  return json(200, { ok: true, deviceId, bucketSec: 5, series });
 }

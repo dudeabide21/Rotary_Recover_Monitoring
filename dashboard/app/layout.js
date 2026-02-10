@@ -1,14 +1,14 @@
+import "./globals.css";
+
 export const metadata = {
-  title: "PhysioFlow Dashboard",
-  description: "Realtime rehab telemetry"
+  title: "PhysioFlow",
+  description: "Realtime Rehab Dashboard",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "ui-sans-serif, system-ui" }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
